@@ -24,11 +24,22 @@ func Close() error {
 	commandCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	if err := ctx.client.Disconnect(commandCtx); err != nil {
+	err := ctx.client.Disconnect(commandCtx)
+	ctx = nil
+	return err
+}
+
+func withCommandContext(action func(context.Context) error) error {
+	timeout := 1 * time.Minute
+
+	mu.Lock()
+	defer mu.Unlock()
+	if err := connect(); err != nil {
 		return err
 	}
-	ctx = nil
-	return nil
+	commandCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return action(commandCtx)
 }
 
 func connect() error {
