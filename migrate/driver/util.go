@@ -8,6 +8,15 @@ func UnmarshalExtJson[T any](json string) T {
 	return result
 }
 
+func getField(document bson.D, key string) (any, bool) {
+	for _, field := range document {
+		if field.Key == key {
+			return field.Value, true
+		}
+	}
+	return nil, false
+}
+
 func throw(err error) {
 	if err != nil {
 		panic(err)

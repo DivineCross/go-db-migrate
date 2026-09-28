@@ -80,7 +80,7 @@ func DropIndex(name, indexName string) {
 }
 
 func InsertWhenNotMatched(name string, documentsJson string, fields ...string) {
-	documents := UnmarshalExtJson[[]bson.M](documentsJson)
+	documents := UnmarshalExtJson[[]bson.D](documentsJson)
 	if len(fields) == 0 {
 		throw(fmt.Errorf("insert into %s requires match fields", name))
 	}
@@ -95,8 +95,8 @@ func InsertWhenNotMatched(name string, documentsJson string, fields ...string) {
 		for _, oriDoc := range oriDocs {
 			matched = true
 			for _, field := range fields {
-				value, exists := doc[field]
-				oriValue, oriExists := oriDoc[field]
+				value, exists := getField(doc, field)
+				oriValue, oriExists := getField(oriDoc, field)
 				if exists != oriExists || !reflect.DeepEqual(value, oriValue) {
 					matched = false
 					break
@@ -127,8 +127,8 @@ func Inserts(name string, documents []any) {
 	}
 }
 
-func FindAll(name string) []bson.M {
-	var documents []bson.M
+func FindAll(name string) []bson.D {
+	var documents []bson.D
 	err := withCommandContext(func(cmdCtx context.Context) error {
 		cursor, err := ctx.db.Collection(name).Find(cmdCtx, bson.D{})
 		if err != nil {
