@@ -7,7 +7,7 @@ func init() {
 }
 
 func s002Up() {
-	db.CreateSchema("Code", `{
+	db.EnsureSchema("Code", `{
 		"bsonType": "object",
 		"required": [
 			"category",
@@ -24,7 +24,7 @@ func s002Up() {
 			"disabled": {"bsonType": "bool"}
 		}
 	}`)
-	db.CreateSchema("EventDef", `{
+	db.EnsureSchema("EventDef", `{
 		"bsonType": "object",
 		"required": [
 			"eventId",
@@ -41,7 +41,7 @@ func s002Up() {
 			"recoverMessage": {"bsonType": "string"}
 		}
 	}`)
-	db.CreateSchema("Pricing", `{
+	db.EnsureSchema("Pricing", `{
 		"bsonType": "object",
 		"required": [
 			"pricingId",
@@ -63,7 +63,4 @@ func s002Up() {
 }
 
 func s002Down() {
-	db.DropSchema("Pricing")
-	db.DropSchema("EventDef")
-	db.DropSchema("Code")
 }
