@@ -9,12 +9,12 @@ import (
 )
 
 func main() {
-	from := flag.Int("from", -1, "Starting step sequence")
-	to := flag.Int("to", -1, "Target step sequence")
+	from := flag.String("from", "", "Starting version")
+	to := flag.String("to", "", "Target version")
 	flag.Parse()
 
-	if *from < 0 || *to < 0 || flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: migrate -from <seq> -to <seq>")
+	if *from == "" || *to == "" || flag.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "usage: migrate -from <version> -to <version>")
 		os.Exit(2)
 	}
 

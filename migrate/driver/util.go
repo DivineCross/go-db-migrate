@@ -1,10 +1,14 @@
 package driver
 
-import "go.mongodb.org/mongo-driver/bson"
+import (
+	"migrate/util"
 
-func UnmarshalExtJson[T any](json string) T {
+	"go.mongodb.org/mongo-driver/bson"
+)
+
+func unmarshalExtJson[T any](json string) T {
 	var result T
-	throw(bson.UnmarshalExtJSON([]byte(json), true, &result))
+	util.Throw(bson.UnmarshalExtJSON([]byte(json), true, &result))
 	return result
 }
 
@@ -15,10 +19,4 @@ func getField(document bson.D, key string) (any, bool) {
 		}
 	}
 	return nil, false
-}
-
-func throw(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

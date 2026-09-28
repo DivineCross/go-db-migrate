@@ -25,9 +25,23 @@ func Register(up, down func()) {
 	}
 }
 
-func Get(seq int) (Step, bool) {
+func GetStep(seq int) (Step, bool) {
 	step, exists := registry[seq]
 	return step, exists
+}
+
+func GetVersion(seq int) (string, bool) {
+	version, exists := versionMap[seq]
+	return version, exists
+}
+
+func GetSeq(version string) (int, bool) {
+	for seq, value := range versionMap {
+		if value == version {
+			return seq, true
+		}
+	}
+	return 0, false
 }
 
 func register(file string, up, down func()) error {
@@ -74,6 +88,11 @@ func catch(action func()) func() error {
 }
 
 var (
+	versionMap = map[int]string{
+		0: "0.0.0",
+		3: "1.0.0",
+		6: "1.0.1",
+	}
 	registry       = map[int]Step{}
 	filenameRegexp = regexp.MustCompile(`^([0-9]{1,6})_(.+)\.go$`)
 )

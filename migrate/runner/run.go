@@ -6,20 +6,26 @@ import (
 
 	db "migrate/driver"
 	"migrate/script"
+	"migrate/util"
 )
 
-func Run(from, to int) (err error) {
-	if from < 0 || to < 0 {
-		return fmt.Errorf("step sequences must be non-negative")
+func Run(fromVersion, toVersion string) (err error) {
+	fromSeq, exists := script.GetSeq(fromVersion)
+	if !exists {
+		return fmt.Errorf("migration version %s is not registered", fromVersion)
+	}
+	toSeq, exists := script.GetSeq(toVersion)
+	if !exists {
+		return fmt.Errorf("migration version %s is not registered", toVersion)
 	}
 
-	isUp := from <= to
-	dir := ternary(isUp, 1, -1)
+	isUp := fromSeq <= toSeq
+	dir := util.Ternary(isUp, 1, -1)
 
 	var steps []script.Step
-	for seq := from; seq != to; seq += dir {
-		stepSeq := ternary(isUp, seq+dir, seq)
-		step, exists := script.Get(stepSeq)
+	for seq := fromSeq; seq != toSeq; seq += dir {
+		stepSeq := util.Ternary(isUp, seq+dir, seq)
+		step, exists := script.GetStep(stepSeq)
 		if !exists {
 			return fmt.Errorf("migration step %d is not registered", stepSeq)
 		}
@@ -34,20 +40,24 @@ func Run(from, to int) (err error) {
 			err = errors.Join(err, closeErr)
 		}
 	}()
+
+	recordId, startErr := startMigration(fromVersion, toVersion)
+	if startErr != nil {
+		return startErr
+	}
 	for _, step := range steps {
-		dirText := ternary(isUp, "up", "down")
-		fn := ternary(isUp, step.Up, step.Down)
+		dirText := util.Ternary(isUp, "up", "down")
+		fn := util.Ternary(isUp, step.Up, step.Down)
+
 		fmt.Printf("Running migration %03d %s (%s)\n", step.Seq, dirText, step.Name)
-		if err := fn(); err != nil {
-			return fmt.Errorf("migration %d %s (%s): %w", step.Seq, dirText, step.Name, err)
+		stepErr := fn()
+		if stepErr != nil {
+			endErr := endMigration(recordId, stepErr)
+			return errors.Join(
+				fmt.Errorf("migration %d %s (%s): %w", step.Seq, dirText, step.Name, stepErr),
+				endErr,
+			)
 		}
 	}
-	return nil
-}
-
-func ternary[T any](cond bool, a, b T) T {
-	if cond {
-		return a
-	}
-	return b
+	return endMigration(recordId, nil)
 }
