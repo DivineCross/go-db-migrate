@@ -34,11 +34,8 @@ func DropColl(name string) {
 	}
 }
 
-func CreateSchema(name, jsonSchema string) {
-	var schema bson.D
-	if err := bson.UnmarshalExtJSON([]byte(jsonSchema), false, &schema); err != nil {
-		throw(fmt.Errorf("parse JSON schema: %w", err))
-	}
+func CreateSchema(name, schemaJson string) {
+	schema := unmarshalExtJson(schemaJson)
 
 	cmd := bson.D{
 		{Key: "collMod", Value: name},
@@ -63,10 +60,7 @@ func DropSchema(name string) {
 }
 
 func EnsureIndex(name, indexJson string) {
-	var index bson.D
-	if err := bson.UnmarshalExtJSON([]byte(indexJson), false, &index); err != nil {
-		throw(fmt.Errorf("parse index definition: %w", err))
-	}
+	index := unmarshalExtJson(indexJson)
 	var indexName string
 	for _, field := range index {
 		if field.Key == "name" {
@@ -94,14 +88,11 @@ func EnsureIndex(name, indexJson string) {
 	}
 }
 
-func RunCommand(command string) {
-	var cmd bson.D
-	if err := bson.UnmarshalExtJSON([]byte(command), false, &cmd); err != nil {
-		throw(fmt.Errorf("parse command: %w", err))
-	}
+func RunCommand(commandJson string) {
+	command := unmarshalExtJson(commandJson)
 
-	if err := runCommand(cmd); err != nil {
-		throw(fmt.Errorf("run command %s: %w", command, err))
+	if err := runCommand(command); err != nil {
+		throw(fmt.Errorf("run command %s: %w", commandJson, err))
 	}
 }
 

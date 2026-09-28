@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
-
-	db "migrate/driver"
 )
 
 type Step struct {
@@ -62,11 +60,11 @@ func catch(action func()) func() error {
 	return func() (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				if failure, ok := r.(*db.Failure); ok {
-					err = failure
-					return
+				if cause, ok := r.(error); ok {
+					err = cause
+				} else {
+					err = fmt.Errorf("%v", r)
 				}
-				panic(r)
 			}
 		}()
 
