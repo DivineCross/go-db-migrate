@@ -37,6 +37,7 @@ func Run(from, to int) (err error) {
 	for _, step := range steps {
 		dirText := ternary(isUp, "up", "down")
 		fn := ternary(isUp, step.Up, step.Down)
+		fmt.Printf("Running migration %03d %s (%s)\n", step.Seq, dirText, step.Name)
 		if err := fn(); err != nil {
 			return fmt.Errorf("migration %d %s (%s): %w", step.Seq, dirText, step.Name, err)
 		}
