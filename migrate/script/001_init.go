@@ -13,4 +13,7 @@ func s001Up() {
 }
 
 func s001Down() {
+	db.DropColl("Pricing")
+	db.DropColl("EventDef")
+	db.DropColl("Code")
 }

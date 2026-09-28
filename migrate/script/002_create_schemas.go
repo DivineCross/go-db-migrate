@@ -63,4 +63,7 @@ func s002Up() {
 }
 
 func s002Down() {
+	db.DropSchema("Pricing")
+	db.DropSchema("EventDef")
+	db.DropSchema("Code")
 }
