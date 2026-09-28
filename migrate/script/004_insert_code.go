@@ -2,8 +2,6 @@ package script
 
 import (
 	db "migrate/driver"
-
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 func init() {
@@ -11,8 +9,7 @@ func init() {
 }
 
 func s004Up() {
-	docs := db.UnmarshalExtJson[[]bson.M](s004CodeJson)
-	db.InsertWhenNotMatched("Code", docs, "category", "code")
+	db.InsertWhenNotMatched("Code", s004CodeJson, "category", "code")
 }
 
 func s004Down() {

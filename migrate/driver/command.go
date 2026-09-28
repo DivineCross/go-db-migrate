@@ -79,7 +79,8 @@ func DropIndex(name, indexName string) {
 	}
 }
 
-func InsertWhenNotMatched(name string, documents []bson.M, fields ...string) {
+func InsertWhenNotMatched(name string, documentsJson string, fields ...string) {
+	documents := UnmarshalExtJson[[]bson.M](documentsJson)
 	if len(fields) == 0 {
 		throw(fmt.Errorf("insert into %s requires match fields", name))
 	}
