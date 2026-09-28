@@ -8,16 +8,16 @@ func init() {
 
 func s003Up() {
 	db.EnsureIndex("Code", `{
-		"key": {"category": 1},
+		"key": {"category": {"$numberInt": "1"}},
 		"name": "category_1"
 	}`)
 	db.EnsureIndex("EventDef", `{
-		"key": {"eventId": 1},
+		"key": {"eventId": {"$numberInt": "1"}},
 		"name": "eventId_1",
 		"unique": true
 	}`)
 	db.EnsureIndex("Pricing", `{
-		"key": {"pricingId": 1},
+		"key": {"pricingId": {"$numberInt": "1"}},
 		"name": "pricingId_1"
 	}`)
 }
