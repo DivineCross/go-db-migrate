@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -61,30 +60,12 @@ func DropSchema(name string) {
 
 func EnsureIndex(name, indexJson string) {
 	index := unmarshalExtJson(indexJson)
-	var indexName string
-	for _, field := range index {
-		if field.Key == "name" {
-			indexName, _ = field.Value.(string)
-		}
-	}
-	if indexName == "" {
-		throw(fmt.Errorf("index name must be a non-empty string"))
-	}
-
-	exists, err := hasIndex(name, indexName)
-	if err != nil {
-		throw(fmt.Errorf("check index %s on %s: %w", indexName, name, err))
-	}
-	if exists {
-		return
-	}
-
 	cmd := bson.D{
 		{Key: "createIndexes", Value: name},
 		{Key: "indexes", Value: bson.A{index}},
 	}
 	if err := runCommand(cmd); err != nil {
-		throw(fmt.Errorf("create index %s on %s: %w", indexName, name, err))
+		throw(fmt.Errorf("create index on %s: %w", name, err))
 	}
 }
 
@@ -97,11 +78,12 @@ func RunCommand(commandJson string) {
 }
 
 func hasIndex(collName, indexName string) (bool, error) {
-	var indexes []struct {
-		Name string `bson:"name"`
-	}
-	cmd := bson.D{{Key: "listIndexes", Value: collName}}
-	if err := runCommandCursor(cmd, &indexes); err != nil {
+	var indexes []*mongo.IndexSpecification
+	err := withCommandContext(func(cmdCtx context.Context) (err error) {
+		indexes, err = ctx.db.Collection(collName).Indexes().ListSpecifications(cmdCtx)
+		return err
+	})
+	if err != nil {
 		return false, err
 	}
 
@@ -124,22 +106,5 @@ func runCommandResult(cmd bson.D, result any) error {
 			return response.Decode(result)
 		}
 		return response.Err()
-	})
-}
-
-func runCommandCursor(cmd bson.D, result any) error {
-	return withCommandContext(func(cmdCtx context.Context) (err error) {
-		cursor, err := ctx.db.RunCommandCursor(cmdCtx, cmd)
-		if err != nil {
-			return err
-		}
-
-		timeout := 10 * time.Second
-		defer func() {
-			closeCtx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-			err = errors.Join(err, cursor.Close(closeCtx))
-		}()
-		return cursor.All(cmdCtx, result)
 	})
 }
