@@ -1,7 +1,5 @@
 package script
 
-import db "migrate/driver"
-
 func init() {
 	Register(s002Up, s002Down)
 }

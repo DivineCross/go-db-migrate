@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"migrate/util"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -16,81 +14,80 @@ const (
 	errCodeNamespaceExists = 48
 )
 
-func EnsureColl(name string) {
+func EnsureColl(name string) error {
 	err := runCommand(bson.D{{Key: "create", Value: name}})
 	if err == nil {
-		return
+		return nil
 	}
 
 	var commandErr mongo.CommandError
 	if errors.As(err, &commandErr) && commandErr.Code == errCodeNamespaceExists {
-		return
+		return nil
 	}
-
-	util.Throw(fmt.Errorf("create collection %s: %w", name, err))
+	return err
 }
 
-func DropColl(name string) {
-	if err := runCommand(bson.D{{Key: "drop", Value: name}}); err != nil {
-		util.Throw(fmt.Errorf("drop collection %s: %w", name, err))
-	}
+func DropColl(name string) error {
+	return runCommand(bson.D{{Key: "drop", Value: name}})
 }
 
-func EnsureSchema(name, schemaJson string) {
-	schema := unmarshalExtJson[bson.D](schemaJson)
+func EnsureSchema(name, schemaJson string) error {
+	schema, err := unmarshalExtJson[bson.D](schemaJson)
+	if err != nil {
+		return err
+	}
 
-	cmd := bson.D{
+	return runCommand(bson.D{
 		{Key: "collMod", Value: name},
 		{Key: "validator", Value: bson.D{{Key: "$jsonSchema", Value: schema}}},
 		{Key: "validationLevel", Value: "strict"},
 		{Key: "validationAction", Value: "error"},
-	}
-	if err := runCommand(cmd); err != nil {
-		util.Throw(fmt.Errorf("create validator %s: %w", name, err))
-	}
+	})
 }
 
-func DropSchema(name string) {
-	cmd := bson.D{
+func DropSchema(name string) error {
+	return runCommand(bson.D{
 		{Key: "collMod", Value: name},
 		{Key: "validator", Value: bson.D{}},
-	}
-	if err := runCommand(cmd); err != nil {
-		util.Throw(fmt.Errorf("drop validator %s: %w", name, err))
-	}
+	})
 }
 
-func EnsureIndex(name, indexJson string) {
-	index := unmarshalExtJson[bson.D](indexJson)
-	cmd := bson.D{
+func EnsureIndex(name, indexJson string) error {
+	index, err := unmarshalExtJson[bson.D](indexJson)
+	if err != nil {
+		return err
+	}
+
+	return runCommand(bson.D{
 		{Key: "createIndexes", Value: name},
 		{Key: "indexes", Value: bson.A{index}},
-	}
-	if err := runCommand(cmd); err != nil {
-		util.Throw(fmt.Errorf("create index on %s: %w", name, err))
-	}
+	})
 }
 
-func DropIndex(name, indexName string) {
-	err := withCommandContext(func(cmdCtx context.Context) error {
+func DropIndex(name, indexName string) error {
+	return withCommandContext(func(cmdCtx context.Context) error {
 		_, err := ctx.db.Collection(name).Indexes().DropOne(cmdCtx, indexName)
 		return err
 	})
-	if err != nil {
-		util.Throw(fmt.Errorf("drop index %s on %s: %w", indexName, name, err))
-	}
 }
 
-func InsertWhenNotMatched(name string, documentsJson string, fields ...string) {
-	documents := unmarshalExtJson[[]bson.D](documentsJson)
+func InsertWhenNotMatched(name string, documentsJson string, fields ...string) error {
+	documents, err := unmarshalExtJson[[]bson.D](documentsJson)
+	if err != nil {
+		return err
+	}
 	if len(fields) == 0 {
-		util.Throw(fmt.Errorf("insert into %s requires match fields", name))
+		return fmt.Errorf("insert into %s requires match fields", name)
 	}
 	if len(documents) == 0 {
-		return
+		return nil
 	}
 
-	oriDocs := FindAll[bson.D](name)
+	oriDocs, err := FindAll[bson.D](name)
+	if err != nil {
+		return err
+	}
+
 	var insDocs []any
 	for _, doc := range documents {
 		matched := false
@@ -113,20 +110,18 @@ func InsertWhenNotMatched(name string, documentsJson string, fields ...string) {
 		}
 	}
 
-	Inserts(name, insDocs)
+	return InsertMany(name, insDocs)
 }
 
-func Inserts(name string, documents []any) {
+func InsertMany(name string, documents []any) error {
 	if len(documents) == 0 {
-		return
+		return nil
 	}
-	err := withCommandContext(func(cmdCtx context.Context) error {
+
+	return withCommandContext(func(cmdCtx context.Context) error {
 		_, err := ctx.db.Collection(name).InsertMany(cmdCtx, documents)
 		return err
 	})
-	if err != nil {
-		util.Throw(fmt.Errorf("insert documents into %s: %w", name, err))
-	}
 }
 
 func InsertOne(name string, document any) error {
@@ -137,68 +132,35 @@ func InsertOne(name string, document any) error {
 }
 
 func UpdateOne(name string, filter, update bson.D) (bool, error) {
-	var count int64
+	var matched bool
 	err := withCommandContext(func(cmdCtx context.Context) error {
-		result, err := ctx.db.Collection(name).UpdateOne(cmdCtx, filter, update)
-		if err == nil {
-			count = result.MatchedCount
+		result, updateErr := ctx.db.Collection(name).UpdateOne(cmdCtx, filter, update)
+		if updateErr == nil {
+			matched = result.MatchedCount == 1
 		}
-		return err
+		return updateErr
 	})
-	return count == 1, err
+	return matched, err
 }
 
-func FindAll[T any](name string) []T {
+func FindAll[T any](name string) ([]T, error) {
 	var documents []T
 	err := withCommandContext(func(cmdCtx context.Context) error {
-		cursor, err := ctx.db.Collection(name).Find(cmdCtx, bson.D{})
-		if err != nil {
-			return err
+		cursor, findErr := ctx.db.Collection(name).Find(cmdCtx, bson.D{})
+		if findErr != nil {
+			return findErr
 		}
 		return cursor.All(cmdCtx, &documents)
 	})
+
 	if err != nil {
-		util.Throw(fmt.Errorf("find all documents in %s: %w", name, err))
+		return nil, err
 	}
-	return documents
-}
-
-func RunCommand(commandJson string) {
-	command := unmarshalExtJson[bson.D](commandJson)
-
-	if err := runCommand(command); err != nil {
-		util.Throw(fmt.Errorf("run command %s: %w", commandJson, err))
-	}
-}
-
-func hasIndex(collName, indexName string) (bool, error) {
-	var indexes []*mongo.IndexSpecification
-	err := withCommandContext(func(cmdCtx context.Context) (err error) {
-		indexes, err = ctx.db.Collection(collName).Indexes().ListSpecifications(cmdCtx)
-		return err
-	})
-	if err != nil {
-		return false, err
-	}
-
-	for _, index := range indexes {
-		if index.Name == indexName {
-			return true, nil
-		}
-	}
-	return false, nil
+	return documents, nil
 }
 
 func runCommand(cmd bson.D) error {
-	return runCommandResult(cmd, nil)
-}
-
-func runCommandResult(cmd bson.D, result any) error {
 	return withCommandContext(func(cmdCtx context.Context) error {
-		response := ctx.db.RunCommand(cmdCtx, cmd)
-		if result != nil {
-			return response.Decode(result)
-		}
-		return response.Err()
+		return ctx.db.RunCommand(cmdCtx, cmd).Err()
 	})
 }

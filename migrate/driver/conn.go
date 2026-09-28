@@ -48,7 +48,7 @@ func connect() error {
 	}
 
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("load .env: %w", err)
+		return err
 	}
 	uri := os.Getenv("MONGODB_URI")
 	database := os.Getenv("MONGODB_DATABASE")

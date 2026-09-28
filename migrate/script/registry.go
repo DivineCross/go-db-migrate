@@ -8,6 +8,11 @@ import (
 	"strconv"
 )
 
+var (
+	registry       = map[int]Step{}
+	filenameRegexp = regexp.MustCompile(`^([0-9]{1,6})_(.+)\.go$`)
+)
+
 type Step struct {
 	Seq  int
 	Name string
@@ -86,13 +91,3 @@ func catch(action func()) func() error {
 		return nil
 	}
 }
-
-var (
-	versionMap = map[int]string{
-		0: "0.0.0",
-		3: "1.0.0",
-		6: "1.0.1",
-	}
-	registry       = map[int]Step{}
-	filenameRegexp = regexp.MustCompile(`^([0-9]{1,6})_(.+)\.go$`)
-)

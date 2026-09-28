@@ -31,15 +31,26 @@ func Run(fromVersion, toVersion string) (err error) {
 		}
 		steps = append(steps, step)
 	}
-	if len(steps) == 0 {
-		return nil
-	}
 
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
 			err = errors.Join(err, closeErr)
 		}
 	}()
+
+	curVersion, err := getCurrentVersion()
+	if err != nil {
+		return err
+	}
+	if curVersion == nil {
+		return fmt.Errorf("database version is unknown")
+	}
+	if *curVersion != fromVersion {
+		return fmt.Errorf("%s does not match database version %s", fromVersion, *curVersion)
+	}
+	if len(steps) == 0 {
+		return nil
+	}
 
 	recordId, startErr := startMigration(fromVersion, toVersion)
 	if startErr != nil {

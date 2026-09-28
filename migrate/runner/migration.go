@@ -22,18 +22,11 @@ type migrationRecord struct {
 	Error       *string            `bson:"error"`
 }
 
-func getCurrentVersion() (version *string, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			version = nil
-			if cause, ok := recovered.(error); ok {
-				err = fmt.Errorf("get current migration version: %w", cause)
-			} else {
-				err = fmt.Errorf("get current migration version: %v", recovered)
-			}
-		}
-	}()
-	documents := db.FindAll[migrationRecord](migrationCollName)
+func getCurrentVersion() (*string, error) {
+	documents, err := db.FindAll[migrationRecord](migrationCollName)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(documents) == 0 {
 		version := "0.0.0"
@@ -41,8 +34,8 @@ func getCurrentVersion() (version *string, err error) {
 	}
 
 	for _, current := range documents {
-		if current.StartAt.IsZero() || current.Id.IsZero() {
-			return nil, fmt.Errorf("migration record has invalid startAt or _id")
+		if current.StartAt.IsZero() {
+			return nil, fmt.Errorf("migration record has invalid startAt")
 		}
 	}
 	sorted := util.ToSorted(documents, func(a, b migrationRecord) int {
@@ -69,10 +62,7 @@ func startMigration(fromVersion, toVersion string) (primitive.ObjectID, error) {
 		FromVersion: fromVersion,
 		ToVersion:   toVersion,
 	}
-	if err := db.InsertOne(migrationCollName, doc); err != nil {
-		return id, fmt.Errorf("record migration start %s -> %s: %w", fromVersion, toVersion, err)
-	}
-	return id, nil
+	return id, db.InsertOne(migrationCollName, doc)
 }
 
 func endMigration(id primitive.ObjectID, stepErr error) error {
@@ -80,7 +70,7 @@ func endMigration(id primitive.ObjectID, stepErr error) error {
 	if stepErr != nil {
 		errorMessage = stepErr.Error()
 	}
-	updated, err := db.UpdateOne(migrationCollName,
+	matched, err := db.UpdateOne(migrationCollName,
 		bson.D{{Key: "_id", Value: id}},
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "endAt", Value: time.Now().UTC()},
@@ -88,9 +78,9 @@ func endMigration(id primitive.ObjectID, stepErr error) error {
 		}}},
 	)
 	if err != nil {
-		return fmt.Errorf("record migration end %s: %w", id.Hex(), err)
+		return err
 	}
-	if !updated {
+	if !matched {
 		return fmt.Errorf("migration record %s was not found", id.Hex())
 	}
 	return nil
