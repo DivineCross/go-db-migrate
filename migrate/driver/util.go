@@ -2,8 +2,8 @@ package driver
 
 import "go.mongodb.org/mongo-driver/bson"
 
-func unmarshalExtJson(json string) bson.D {
-	var result bson.D
+func UnmarshalExtJson[T any](json string) T {
+	var result T
 	throw(bson.UnmarshalExtJSON([]byte(json), true, &result))
 	return result
 }

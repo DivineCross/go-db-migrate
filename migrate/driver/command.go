@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -34,7 +35,7 @@ func DropColl(name string) {
 }
 
 func EnsureSchema(name, schemaJson string) {
-	schema := unmarshalExtJson(schemaJson)
+	schema := UnmarshalExtJson[bson.D](schemaJson)
 
 	cmd := bson.D{
 		{Key: "collMod", Value: name},
@@ -58,7 +59,7 @@ func DropSchema(name string) {
 }
 
 func EnsureIndex(name, indexJson string) {
-	index := unmarshalExtJson(indexJson)
+	index := UnmarshalExtJson[bson.D](indexJson)
 	cmd := bson.D{
 		{Key: "createIndexes", Value: name},
 		{Key: "indexes", Value: bson.A{index}},
@@ -78,8 +79,70 @@ func DropIndex(name, indexName string) {
 	}
 }
 
+func InsertWhenNotMatched(name string, documents []bson.M, fields ...string) {
+	if len(fields) == 0 {
+		throw(fmt.Errorf("insert into %s requires match fields", name))
+	}
+	if len(documents) == 0 {
+		return
+	}
+
+	oriDocs := FindAll(name)
+	var insDocs []any
+	for _, doc := range documents {
+		matched := false
+		for _, oriDoc := range oriDocs {
+			matched = true
+			for _, field := range fields {
+				value, exists := doc[field]
+				oriValue, oriExists := oriDoc[field]
+				if exists != oriExists || !reflect.DeepEqual(value, oriValue) {
+					matched = false
+					break
+				}
+			}
+			if matched {
+				break
+			}
+		}
+		if !matched {
+			insDocs = append(insDocs, doc)
+		}
+	}
+
+	Inserts(name, insDocs)
+}
+
+func Inserts(name string, documents []any) {
+	if len(documents) == 0 {
+		return
+	}
+	err := withCommandContext(func(cmdCtx context.Context) error {
+		_, err := ctx.db.Collection(name).InsertMany(cmdCtx, documents)
+		return err
+	})
+	if err != nil {
+		throw(fmt.Errorf("insert documents into %s: %w", name, err))
+	}
+}
+
+func FindAll(name string) []bson.M {
+	var documents []bson.M
+	err := withCommandContext(func(cmdCtx context.Context) error {
+		cursor, err := ctx.db.Collection(name).Find(cmdCtx, bson.D{})
+		if err != nil {
+			return err
+		}
+		return cursor.All(cmdCtx, &documents)
+	})
+	if err != nil {
+		throw(fmt.Errorf("find all documents in %s: %w", name, err))
+	}
+	return documents
+}
+
 func RunCommand(commandJson string) {
-	command := unmarshalExtJson(commandJson)
+	command := UnmarshalExtJson[bson.D](commandJson)
 
 	if err := runCommand(command); err != nil {
 		throw(fmt.Errorf("run command %s: %w", commandJson, err))
