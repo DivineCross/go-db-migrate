@@ -27,6 +27,12 @@ func EnsureColl(name string) {
 	throw(fmt.Errorf("create collection %s: %w", name, err))
 }
 
+func DropColl(name string) {
+	if err := runCommand(bson.D{{Key: "drop", Value: name}}); err != nil {
+		throw(fmt.Errorf("drop collection %s: %w", name, err))
+	}
+}
+
 func EnsureSchema(name, schemaJson string) {
 	schema := unmarshalExtJson(schemaJson)
 
@@ -41,6 +47,16 @@ func EnsureSchema(name, schemaJson string) {
 	}
 }
 
+func DropSchema(name string) {
+	cmd := bson.D{
+		{Key: "collMod", Value: name},
+		{Key: "validator", Value: bson.D{}},
+	}
+	if err := runCommand(cmd); err != nil {
+		throw(fmt.Errorf("drop validator %s: %w", name, err))
+	}
+}
+
 func EnsureIndex(name, indexJson string) {
 	index := unmarshalExtJson(indexJson)
 	cmd := bson.D{
@@ -52,28 +68,21 @@ func EnsureIndex(name, indexJson string) {
 	}
 }
 
+func DropIndex(name, indexName string) {
+	err := withCommandContext(func(cmdCtx context.Context) error {
+		_, err := ctx.db.Collection(name).Indexes().DropOne(cmdCtx, indexName)
+		return err
+	})
+	if err != nil {
+		throw(fmt.Errorf("drop index %s on %s: %w", indexName, name, err))
+	}
+}
+
 func RunCommand(commandJson string) {
 	command := unmarshalExtJson(commandJson)
 
 	if err := runCommand(command); err != nil {
 		throw(fmt.Errorf("run command %s: %w", commandJson, err))
-	}
-}
-
-func dropColl(name string) {
-	if err := runCommand(bson.D{{Key: "drop", Value: name}}); err != nil {
-		throw(fmt.Errorf("drop collection %s: %w", name, err))
-	}
-}
-
-func dropSchema(name string) {
-	cmd := bson.D{
-		{Key: "collMod", Value: name},
-		{Key: "validator", Value: bson.D{}},
-	}
-
-	if err := runCommand(cmd); err != nil {
-		throw(fmt.Errorf("drop validator %s: %w", name, err))
 	}
 }
 
